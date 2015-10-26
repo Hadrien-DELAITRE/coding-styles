@@ -277,6 +277,22 @@ select *
            from baz
        ) --?
 
+SELECT *
+FROM foo
+WHERE EXISTS (
+  SELECT *
+  FROM baz
+); --?
+
+SELECT *
+FROM foo
+WHERE EXISTS
+(
+  SELECT *
+  FROM baz
+); --?
+
+
 -- Complex Queries
 -- Examples
 -- parameters linebreaks after
@@ -338,3 +354,68 @@ select foo.name, foo.item, sum(foo.foo_count) as units_foo, sum(foo.foo_number) 
  where foo.name in (select foo.name
                       from bar_with)
  group by foo.name,foo.item;
+
+WITH foo_with AS (
+  SELECT
+    foo.name,
+    SUM(foo.foo_number) AS total_foo,
+    foo.produit
+  FROM foo
+  GROUP BY foo.foo_tri
+),
+bar_with AS (
+  SELECT
+    bar.name
+  FROM foo_with
+  WHERE total_foo > (
+    SELECT SUM(total_foo) / 10
+    FROM foo_with
+  )
+);
+SELECT
+  foo.name,
+  foo.item,
+  sum(foo.foo_count)  AS units_foo,
+  sum(foo.foo_number) AS total_foo,
+FROM foo
+WHERE foo.name IN (
+  SELECT
+    foo.name
+  FROM bar_with
+)
+GROUP BY foo.name, foo.item; --?
+
+
+with foo_with AS
+(
+  SELECT
+    foo.name,
+    SUM(foo.foo_number) AS total_foo,
+    foo.produit
+  FROM foo
+  GROUP BY foo.foo_tri
+),
+bar_with AS
+(
+  SELECT
+    bar.name
+  FROM foo_with
+  WHERE total_foo >
+  (
+    SELECT SUM(total_foo) / 10
+    FROM foo_with
+  )
+);
+SELECT
+  foo.name,
+  foo.item,
+  SUM(foo.foo_count) AS units_foo,
+  SUM(foo.foo_number) AS total_foo,
+FROM foo
+WHERE foo.name IN
+(
+  SELECT
+    foo.name
+  FROM bar_with
+)
+GROUP BY foo.name, foo.item; --?
