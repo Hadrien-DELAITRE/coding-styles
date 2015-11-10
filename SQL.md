@@ -1,42 +1,170 @@
---Upper or Lower key words
-UPDATE foo SET bar = x; --?
-update foo set bar = x; --?
-SELECT * FROM foo; --?
-select * from foo; --?
+Use uppercase for statements, operators and keywords
+```sql
+-- bad
+select * from foo order by bar;
 
+-- good
+SELECT * FROM foo ORDER BY bar;
+```
 
--- Identifiers
-update foo set bar = x; --?
-update "foo" set "bar" = x; --?
+Use lowercase for types
+```sql
+-- bad
+CREATE TABLE foo(bar INTEGER, baz TEXT);
 
--- Concatenation
-select 'foo'
-'bar'; --?
-select 'foo' || 'bar'; --?
-select 'foobar'; --?
+-- good
+CREATE TABLE foo(bar integer, baz text);
+```
 
---Positional Parameters
-create function foo(text) returns text as $$ select $1 $$ language SQL; --?
-create function foo(in_text text) returns text as $$ select in_text $$ language sql; --?
+Do not use quotation marks for identifiers
+```sql
+-- bad
+UPDATE "foo" SET "bar" = x;
 
---Arrays
-select ARRAY[1,2,3+4]; --bad
-select array[1, 2, 3 + 4]; --good
+-- good
+UPDATE foo SET bar = x;
+```
 
---Using of Case word key (division-by-zero example)
-select * from foo where bar > 0 and baz/bar > 1; --error
-select case when min(bar) > 0 then avg(baz/bar) end from foo;
---error: aggregates are computed concurrently over all the input rows.
-select * from foo where case when bar > 0 then baz/bar > 1 end; --good
+Use double pipe for explicit concatenation
+```sql
+-- bad
+SELECT 'foo'
+'bar';
 
--- Potitional Notations
--- create function foo(a, b, c) returns type as $$ select a, b, c; $$ language sql;
-select foo(1, 2); --good
-select foo(c := 3, b := 1, a := 2) --if needed
+-- bad
+SELECT 'foobar';
 
--- Singular or Plural nouns for table names
-create table foo --?
-create table foos --?
+-- good
+SELECT 'foo' || 'bar';
+```
+
+Use explicit parameters (with `in_` or `out_` prefix) instead of positional parameters
+```sql
+-- bad
+CREATE FUNCTION foo(text) RETURNS text AS $$
+  SELECT $1;
+$$ LANGUAGE sql;
+
+-- bad
+CREATE FUNCTION foo(bar text) RETURNS text AS $$
+  SELECT bar;
+$$ LANGUAGE sql;
+
+-- good
+CREATE FUNCTION foo(in_bar text) RETURNS text AS $$
+  SELECT in_bar;
+$$ LANGUAGE sql;
+```
+
+Array declaration
+```sql
+-- bad
+SELECT ARRAY[1,2,3+4];
+
+-- bad
+SELECT '{1, 2, 3 + 4}';
+
+-- good
+SELECT array[1, 2, 3 + 4];
+```
+
+Use positional parameters only if needed
+```sql
+CREATE FUNCTION foo(in_a integer, in_b integer, in_c integer) RETURNS text AS $$
+  SELECT in_a;
+  SELECT in_b;
+  SELECT in_c;
+$$ LANGUAGE sql;
+
+-- bad
+SELECT foo(in_a := 1, in_b := 2, in_c := 3);
+
+-- good
+SELECT foo(1, 2, 3);
+
+-- if needed
+SELECT foo(in_c := 3, in_a := 1, in_b := 2);
+```
+
+Do not use casting operator while not needed
+```sql
+-- bad
+SELECT cast('12' AS integer);
+
+-- good
+SELECT '12'::integer;
+```
+
+Use singular words for table names
+```sql
+--bad
+SELECT * FROM bars;
+
+-- good
+SELECT * FROM bar;
+```
+
+Prefix table id with the table name
+```sql
+-- bad
+CREATE TABLE foo(id serial);
+
+-- good
+CREATE TABLE foo(foo_id serial);
+```
+
+`NULL` and `NOT NULL` constraints have to be declared into the table declaration without explicit column reference
+```sql
+-- bad
+CREATE TABLE foo(bar integer, NOT NULL(bar));
+
+-- good
+CREATE TABLE foo(bar integer NOT NULL);
+```
+
+`PRIMARY KEY` constraints have to be declared into the table declaration WITH explicit column reference
+```sql
+-- bad
+CREATE TABLE foo(foo_id serial PRIMARY KEY);
+
+-- good
+CREATE TABLE foo(foo_id serial, PRIMARY KEY(foo_id));
+```
+
+Other constraints have to be declared outside of the table declaration with an explicit name based on the `*key*_*table*_on_*column*(_and_*column*)` pattern (keys are: `fkey` for `FOREIGN KEY`, `key` for `UNIQUE`, `check` for `CHECK`)
+```sql
+-- bad
+CREATE TABLE foo(foo_id serial, bar_id integer REFERENCES bar(id));
+
+-- good
+CREATE TABLE foo(foo_id serial, bar_id integer);
+ALTER TABLE foo ADD CONSTRAINT fkey_foo_on_bar_id FOREIGN KEY bar_id REFERENCES bar(id);
+
+-- bad
+CREATE TABLE foo(bar text UNIQUE);
+
+-- good
+CREATE TABLE foo(bar text);
+ALTER TABLE foo ADD CONSTRAINT key_foo_on_bar UNIQUE(bar);
+
+-- bad
+CREATE TABLE foo(bar integer CHECK(bar > 1));
+
+-- good
+CREATE TABLE foo(bar integer);
+ALTER TABLE foo ADD CONSTRAINT check_foo_on_bar CHECK(bar > 1);
+```
+
+Name your indexes based on the `idx_*table*_on_*column*(_and_*column*)` pattern
+```sql
+-- bad
+CREATE INDEX ON foo(bar, baz);
+
+-- good
+CREATE INDEX idx_foo_on_bar_and_baz ON foo(bar, baz);
+```
+
+To be continued...
 
 -- Check Constraints
 create table foo (
@@ -419,3 +547,12 @@ WHERE foo.name IN
   FROM bar_with
 )
 GROUP BY foo.name, foo.item; --?
+
+-- Searching in Arrays --
+SELECT * FROM foo WHERE 10 = any(pay); --?
+SELECT * FROM foo WHERE 10 = all(pay); --?
+SELECT * FROM foo WHERE pay && array[10]; --?
+
+-- Array Constructors --
+SELECT array[array[1, 2], array[3, 4]]; --?
+SELECT array[[1, 2], [3, 4]]; --?
