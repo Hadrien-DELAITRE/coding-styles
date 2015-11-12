@@ -1,10 +1,19 @@
 Use uppercase for statements, operators and keywords
 ```sql
 -- bad
-select * from foo order by bar;
+SELECT * FROM foo order by bar;
 
 -- good
 SELECT * FROM foo ORDER BY bar;
+```
+
+Use lowercase for functions
+```sql
+-- bad
+SELECT COUNT(*) FROM foo;
+
+-- good
+SELECT count(*) FROM foo;
 ```
 
 Use lowercase for types
@@ -16,13 +25,29 @@ CREATE TABLE foo(bar INTEGER, baz TEXT);
 CREATE TABLE foo(bar integer, baz text);
 ```
 
-Do not use quotation marks for identifiers
+Do not use quotation marks for identifiers, unless you are defining a new type (which needs camelCase notation)
 ```sql
 -- bad
 UPDATE "foo" SET "bar" = x;
 
 -- good
 UPDATE foo SET bar = x;
+
+-- if needed
+CREATE TYPE foo AS (
+  "fooId" integer,
+  "title" text,
+  "parentId" integer
+);
+```
+
+Use same difference operator as other languages.
+```sql
+-- bad
+SELECT baz FROM foo WHERE bar <> baz;
+
+-- good
+SELECT bar FROM foo WHERE bar != baz;
 ```
 
 Use double pipe for explicit concatenation
@@ -36,6 +61,15 @@ SELECT 'foobar';
 
 -- good
 SELECT 'foo' || 'bar';
+```
+
+Always specify the needed columns
+```sql
+-- bad
+SELECT * FROM foo;
+
+-- good
+SELECT foo_id, bar_id, creation_date FROM foo;
 ```
 
 Use explicit parameters (with `in_` or `out_` prefix) instead of positional parameters
@@ -56,19 +90,19 @@ CREATE FUNCTION foo(in_bar text) RETURNS text AS $$
 $$ LANGUAGE sql;
 ```
 
-Array declaration
+Use proper array declaration
 ```sql
 -- bad
-SELECT ARRAY[1,2,3+4];
+SELECT '{1, 2, 3 + 4}';
 
 -- bad
-SELECT '{1, 2, 3 + 4}';
+SELECT ARRAY[1,2,3+4];
 
 -- good
 SELECT array[1, 2, 3 + 4];
 ```
 
-Use positional parameters only if needed
+Specify the name of the parameters
 ```sql
 CREATE FUNCTION foo(in_a integer, in_b integer, in_c integer) RETURNS text AS $$
   SELECT in_a;
@@ -77,10 +111,10 @@ CREATE FUNCTION foo(in_a integer, in_b integer, in_c integer) RETURNS text AS $$
 $$ LANGUAGE sql;
 
 -- bad
-SELECT foo(in_a := 1, in_b := 2, in_c := 3);
+SELECT foo(1, 2, 3);
 
 -- good
-SELECT foo(1, 2, 3);
+SELECT foo(in_a := 1, in_b := 2, in_c := 3);
 
 -- if needed
 SELECT foo(in_c := 3, in_a := 1, in_b := 2);
@@ -89,19 +123,64 @@ SELECT foo(in_c := 3, in_a := 1, in_b := 2);
 Do not use casting operator while not needed
 ```sql
 -- bad
-SELECT cast('12' AS integer);
+SELECT cast('bar' AS integer);
 
 -- good
-SELECT '12'::integer;
+SELECT 'bar'::integer;
+
+-- only for immutable functions
+CREATE FUNCTION foo()
+RETURNS text
+AS $body$
+  SELECT integer 'bar';
+$body$ LANGUAGE sql immutable;
 ```
 
 Use singular words for table names
 ```sql
 --bad
-SELECT * FROM bars;
+SELECT foo FROM bars;
 
 -- good
-SELECT * FROM bar;
+SELECT foo FROM bar;
+```
+
+Do not use space before parentheses while writing one-line code.
+```sql
+-- bad
+CREATE TABLE foo ();
+INSERT INTO bar (baz) VALUES (1);
+CREATE FUNCTION foo_bar (in_a text) ...;
+
+-- good
+CREATE TABLE foo();
+INSERT INTO bar(baz) VALUES(1);
+CREATE FUNCTION foo_bar(in_a text) ...;
+```
+
+Use space before parentheses when using multi-line code and comma dangle at line end.
+```sql
+-- bad
+CREATE table foo
+(
+  a,
+  b,
+  c
+);
+
+-- bad
+CREATE table foo (
+  a
+  , b
+  , c
+);
+
+-- good
+CREATE TABLE foo (
+  a,
+  b,
+  c
+);
 ```
 
 Prefix table id with the table name
@@ -164,395 +243,121 @@ CREATE INDEX ON foo(bar, baz);
 CREATE INDEX idx_foo_on_bar_and_baz ON foo(bar, baz);
 ```
 
-To be continued...
+Specify table columns while inserting and do not mention those to be not defined (or defined by default)
+```sql
+CREATE TABLE foo(a, b default 0, c, d default 1);
 
--- Check Constraints
-create table foo (
-  id integer,
-  contraint_1 numeric check (contraint_1 > 0), -- Column constraint
-  contraint_2 numeric check (contraint_2 > 0), -- Column constraint
-  check (contraint_1 > contraint_2) -- Table constraint
-) --?
+-- bad
+INSERT INTO foo VALUES(1, 2, 3, 4);
 
-create table foo (
-  id integer,
-  contraint_1 numeric,
-  contraint_2 numeric,
-  check (contraint_1 > 0), -- Column constraint
-  check (contraint_2 > 0), -- Column constraint
-  check (contraint_1 > contraint_2) -- Table constraint
-) --?
+-- good
+INSERT INTO foo(a, b, c, d) VALUES(1, 2, 3, 4);
 
-create table foo (
-  id integer,
-  contraint_1 numeric,
-  contraint_2 numeric,
-  constraint named_constraint_1 check (contraint_1 > 0), -- Column constraint named
-  constraint named_constraint_2 check (contraint_2 > 0), -- Column constraint named
-  constraint named_constraint_table check (contraint_1 > contraint_2) -- Table constraint named
-) --?
+-- bad
+INSERT INTO foo(a, b, c, d) VALUES(1, default, 3, default);
 
--- Not-Null Constraints
-create table foo (
-  id integer not null -- no named
-) --?
+-- good
+INSERT INTO foo(a, c) VALUES(1, 3);
+```
 
-create table foo (
-  id integer constraint named_not_null check (id is not null) -- named
-) --?
+Do not use `NATURAL JOIN` and `JOIN USING`. It is unreliable, use instead `JOIN ON`.
+```sql
+-- bad
+SELECT baz FROM foo NATURAL JOIN bar;
 
--- Unique Constraints
--- Adding a unique constraint will automatically create a unique btree index on the column or group of columns used in the constraint.
-create table foo (
-  id integer unique
-) --?
+-- bad
+SELECT baz FROM foo JOIN bar USING(foo_id);
 
-create table foo (
-  id integer,
-  unique(id)
-) --?
+-- good
+SELECT baz FROM foo JOIN bar ON foo.id = bar.foo_id;
+```
 
-create table foo (
-  id integer constraint must_be_different unique
-) --?
+Do not use unnecessary `INNER` and `OUTER` statements while using `JOIN`
+```sql
+-- bad
+SELECT baz FROM foo INNER JOIN bar ON ...;
 
--- Primary Keys
--- Adding a primary key will automatically create a unique btree index on the column or group of columns used in the primary key.
-create table foo (
-  id integer unique not null
-) --?
-create table foo (
-  id integer primary key
-) --?
-create table foo (
-  id integer,
-  primary key (id)
-) --?
+-- good
+SELECT baz FROM foo JOIN bar ON ...;
+```
 
--- Foreign Keys
--- Create table foo (no_foo integer primary key)
-create table bar (
-  no_bar integer primary key,
-  no_foo integer references foo
-) --?
-create table bar (
-  no_bar integer primary key,
-  no_foo integer references foo (no_foo)
-) --?
-create table bar (
-  no_bar integer primary key,
-  no_foo integer,
-  foreign key (no_foo) references foo
-) --?
+Separate columns and their aliases
+```sql
+-- bad
+SELECT f.bar FROM foo f;
 
--- Inserting Data
--- Create table foo (a, b default 0, c, d default 1)
-insert into foo values (1, 2, 3, 4); --?
-insert into (a, b, c, d) values (1, 2, 3, 4); --?
-insert into foo values (1, 2) --?
-insert into foo values (1, 2, default, default) --?
-insert into foo default values; --?
+-- good
+SELECT f.bar FROM foo AS f;
+```
 
--- Qualified Joins
-select * from foo join bar on foo.id = bar.id; --?
-select * from foo join bar using (id); --?
-select * from foo natural join bar; --?
+Always use aliases to prefix every used columns. An alias is a trigram formed by first letters of every words of a table name (with a maximum of 3). If the table name contains below 3 words, the trigram is completed by the last word letters. Collisions can occur when manipulating table name with more than 3 words. If needed, expand the trigram to more than 3 letters.
+```sql
+-- good (below 3 words table name)
+SELECT fba.foo_bar_id FROM foo_bar AS fba;
 
-select * from foo join bar on ...; --?
-select * from foo inner join bar on ...; --?
+-- good (3 words table name and above)
+SELECT fbb.foo_bar_baz_id FROM foo_bar_baz AS fbb;
 
-select * from foo left join bar on ...; --?
-select * from foo left outer join bar on ...; --?
+-- if needed
+SELECT fbbz.foo_bar_baz_zoo_id FROM foo_bar_baz_zoo AS fbbz;
+```
 
-select * from foo right join bar on ...; --?
-select * from foo right outer join bar on ...; --?
+Respect proper function indentation, name the `$$` block and use multi-line parameters only if needed.
+```sql
+-- good
+CREATE FUNCTION foo(in_a text, in_b integer)
+RETURNS integer
+AS $body$
+  SELECT foo.id FROM foo AS foo WHERE foo.bar = in_a AND foo.baz = in_b;
+$body$ LANGUAGE sql;
 
-select * from foo full join bar on ...; --?
-select * from foo full outer join bar on ...; --?
+-- if needed
+CREATE FUNCTION foo (
+  in_a text,
+  in_b integer
+)
+RETURNS integer
+AS $body$
+  SELECT foo.id FROM foo AS foo WHERE foo.bar = in_a AND foo.baz = in_b;
+$body$ LANGUAGE sql;
+```
 
--- Table and Column Aliases
-from foo as named_foo --?
-from foo named_foo --?
+Respect proper query indentation. Each statements have to be right-aligned for the same depth. Each depth has to be aligned one space behind its parent and is independent in terms of statements' right-alignment.
+```sql
+-- good
+SELECT foo.id
+  FROM foo AS foo
+ WHERE id IN (
+         SELECT bar.foo_id
+           FROM bar AS bar
+       );
+-- good
+  SELECT foo.data,
+         foo.item,
+         foo.category
+    FROM foo AS foo
+    JOIN bar AS bar
+         ON foo.id = bar.id
+   WHERE foo.data > bar.data
+         AND foo.item > 0
+GROUP BY foo.category
+  HAVING count(*) > 0
+ORDER BY foo.rank
+   LIMIT 10;
 
--- Syntax Good Practices
--- parameters
-create table foo ();
-create table foo();
-
-create function foo ();
-create function foo();
-
-  -- Functions name
-select Sum(total_foo);
-select sum(total_foo);
-
--- Tables / Functions parameters
--- parentheses wrapper
-create table/function foo (a, b, c) --?
-
-create table/function foo (
-  a,
-  b,
-  c
-) --?
-
-create table/function foo
-(
-  a,
-  b,
-  c
-) --?
-
--- parameters linebreaks with comma:
--- after
-create table/function foo (
-  a
-  , b
-  , c
-) --?
--- before
-create table/function foo (
-  a
-  ,b
-  ,c
-) --?
--- before with space
-create table/function foo (
-  a
-  , b
-  , c
-) --?
-
--- Functions Implementation
-create function foo ...
-returns type as
-$$
-select a, b, c;
-$$ language sql; --?
-
-create function ...
-returns type
-as $$
-select a, b, c;
-$$ language sql; --?
-
-create function ...
-returns type as
-$$
-select a, b, c;
-$$ language sql; --?
-
--- default named? $defaultName$
-create function ...
-returns type as
-$defaultName$
-select a, b, c;
-$defaultName$ language sql; --?
-
--- Simple Query
-select *
-from   foo
-       join bar using (id)
-where  foo.foo_data > bar.bar_data
-       and foo.foo_item > 0
-group  by foo.foo_category
-having count(*) > 0
-order  by foo.foo_tri
-limit  10 --? left align
-
-select *
-  from foo
-       join bar using (id)
- where foo.foo_data > bar.bar_data
-       and foo.foo_item > 0
- group by foo.foo_category
-having count(*) > 0
- order by foo.foo_tri
- limit 10 --? right align
-
- select *
-   from foo
-        join bar using (id)
-  where foo.foo_data > bar.bar_data
-    and foo.foo_item > 0
-  group by foo.foo_category
- having count(*) > 0
-  order by foo.foo_tri
-  limit 10 --? and/or under where
-
--- Sub query
-select *
-  from foo
- where exists (select *
-                 from baz) --?
-select *
-  from foo
- where exists (
-                select *
-                  from baz
-              )--?
-select *
-  from foo
- where exists (
-                select *
-                  from baz
-       )--?
-
-select *
-  from foo
- where exists (
-         select *
-           from baz
-       ) --?
-
-SELECT *
-FROM foo
-WHERE EXISTS (
-  SELECT *
-  FROM baz
-); --?
-
-SELECT *
-FROM foo
-WHERE EXISTS
-(
-  SELECT *
-  FROM baz
-); --?
-
-
--- Complex Queries
--- Examples
--- parameters linebreaks after
-with foo_with
-     as (select foo.name,
-                sum(foo.foo_number) as total_foo,
-                foo.produit
-           from foo
-          group by foo.foo_tri),
-     bar_with
-     as (select bar.name
-           from foo_with
-          where total_foo > (select sum(total_foo) / 10
-                               from foo_with))
-select foo.name,
-       foo.item,
-       sum(foo.foo_count)  as units_foo,
-       sum(foo.foo_number) as total_foo,
-  from foo
- where foo.name in (select foo.name
-                      from bar_with)
- group by foo.name,
-          foo.item;
-
--- parameters linebreaks before
-with foo_with
-     as (select foo.name
-                , sum(foo.foo_number) as total_foo
-                , foo.produit
-           from foo
-          group by foo.foo_tri),
-     bar_with
-     as (select bar.name
-           from foo_with
-          where total_foo > (select sum(total_foo) / 10
-                               from foo_with))
-select foo.name
-       , foo.item
-       , sum(foo.foo_count)  as units_foo
-       , sum(foo.foo_number) as total_foo,
-  from foo
- where foo.name in (select foo.name
-                      from bar_with)
- group by foo.name
-          , foo.item;
-
--- Not stacked
-with foo_with
-     as (select foo.name, sum(foo.foo_number) as total_foo, foo.produit
-           from foo
-          group by foo.foo_tri),
-     bar_with
-     as (select bar.name
-           from foo_with
-          where total_foo > (select sum(total_foo) / 10
-                               from foo_with))
-select foo.name, foo.item, sum(foo.foo_count) as units_foo, sum(foo.foo_number) as total_foo,
-  from foo
- where foo.name in (select foo.name
-                      from bar_with)
- group by foo.name,foo.item;
-
+-- good
 WITH foo_with AS (
-  SELECT
-    foo.name,
-    SUM(foo.foo_number) AS total_foo,
-    foo.produit
-  FROM foo
-  GROUP BY foo.foo_tri
+    SELECT foo.name,
+           sum(foo.number) AS total_foo,
+           foo.product
+      FROM foo AS foo
+  GROUP BY foo.name
 ),
 bar_with AS (
-  SELECT
-    bar.name
-  FROM foo_with
-  WHERE total_foo > (
-    SELECT SUM(total_foo) / 10
-    FROM foo_with
-  )
+  SELECT fwi.name
+    FROM foo_with AS fwi
+   WHERE fwi.total_foo > (
+           SELECT bar.total / 10
+             FROM bar AS bar
+         )
 );
-SELECT
-  foo.name,
-  foo.item,
-  sum(foo.foo_count)  AS units_foo,
-  sum(foo.foo_number) AS total_foo,
-FROM foo
-WHERE foo.name IN (
-  SELECT
-    foo.name
-  FROM bar_with
-)
-GROUP BY foo.name, foo.item; --?
-
-
-with foo_with AS
-(
-  SELECT
-    foo.name,
-    SUM(foo.foo_number) AS total_foo,
-    foo.produit
-  FROM foo
-  GROUP BY foo.foo_tri
-),
-bar_with AS
-(
-  SELECT
-    bar.name
-  FROM foo_with
-  WHERE total_foo >
-  (
-    SELECT SUM(total_foo) / 10
-    FROM foo_with
-  )
-);
-SELECT
-  foo.name,
-  foo.item,
-  SUM(foo.foo_count) AS units_foo,
-  SUM(foo.foo_number) AS total_foo,
-FROM foo
-WHERE foo.name IN
-(
-  SELECT
-    foo.name
-  FROM bar_with
-)
-GROUP BY foo.name, foo.item; --?
-
--- Searching in Arrays --
-SELECT * FROM foo WHERE 10 = any(pay); --?
-SELECT * FROM foo WHERE 10 = all(pay); --?
-SELECT * FROM foo WHERE pay && array[10]; --?
-
--- Array Constructors --
-SELECT array[array[1, 2], array[3, 4]]; --?
-SELECT array[[1, 2], [3, 4]]; --?
